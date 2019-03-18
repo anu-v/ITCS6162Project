@@ -102,10 +102,10 @@ public class UserInterface {
 				}
 				
 				try {
-					if(Integer.parseInt(minSupportTextField.getText()) < 0 || 
+					if(Integer.parseInt(minSupportTextField.getText()) <= 0 || 
 							Integer.parseInt(minConfidenceTextField.getText()) < 0) {
 						correctInput = false;
-						JOptionPane.showMessageDialog(null, "Support and confidence values must be greater than or equal to 0", 
+						JOptionPane.showMessageDialog(null, "Support and confidence values must be greater than 0", 
 								"Value error", JOptionPane.ERROR_MESSAGE);
 					}
 				}catch(NullPointerException err) {
@@ -295,15 +295,23 @@ public class UserInterface {
 		frame.setVisible(true);
 	}
 
+	/**
+	 * Initialize all potential stable attributes in the list
+	 */
 	protected void initStableAttributes() {
 		String[] attributeNames = (run.getAttributeNames().toArray(new String[0]));
-		
+
 		stableAttributesList.setListData(attributeNames);
 		
 	}
 
+	/**
+	 * Initializes all of the potential decision attribute values
+	 */
 	protected void initDecisionAttributes() {
 		List<String> attributeNames = run.getAttributeNames();
+		
+		decisionAttributeComboBox.removeAllItems();
 		
 		for(String name : attributeNames) {
 			decisionAttributeComboBox.addItem(name);

@@ -1,3 +1,8 @@
+/**
+ * Author: Group 8 
+ * 
+ * This class handles the logic for the action rules calculation 
+ */
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -53,6 +58,9 @@ public class Logic {
 	 */
 	private Map<String, HashSet<String>> attributeValues; 
 	
+	/**
+	 * Constructor that initializes values
+	 */
 	public Logic() {
 		attributeNames = new ArrayList<String>();
 		data = new HashMap<String, ArrayList<String>>();
@@ -61,11 +69,13 @@ public class Logic {
 		attributeValues = new HashMap<String, HashSet<String>>();
 		ruleSuppConf = new HashMap<ArrayList<String>, ArrayList<Integer>>();
 	}
-	
-	public void setDecisionAttributes() {
-		
-	}
-	
+
+	/**
+	 * Reads data and header into program and records all distinct attribute values, all attribute names, 
+	 * and the lines where each attribute value occurs 
+	 * @param header file of header attribute names
+	 * @param inFile file of data in order of the attribute header names
+	 */
 	public void readFile(File header, File inFile) {
 		String line;
 		int lineNum = 0;
@@ -212,10 +222,9 @@ public class Logic {
 	}
 	
 	/**
-	 * 
-	 * @param decisionValueInitial
-	 * @param decisionValueTo
-	 * @return
+	 * Runs LERS based on given decision values
+	 * @param decisionValueInitial initial decision value
+	 * @param decisionValueTo final decision value
 	 */
 	public void runLers(String decisionValueInitial, String decisionValueTo) {
 		this.decisionValueInitial = decisionValueInitial;
@@ -225,6 +234,9 @@ public class Logic {
 		 lers.runLers();
 	}
 	
+	/**
+	 * Calculates action rules 
+	 */
 	public void calculateActionRules() {
 		certainRules = lers.getCertainRules();
 		HashSet<HashSet<String>> decisionToSets  = certainRules.get(decisionValueTo);
@@ -238,8 +250,9 @@ public class Logic {
 		ArrayList<String> attributeTest;
 		List<String> attributeTestOccurrences;
 		
-		if(!decisionToSets.isEmpty()) {
+		if(decisionToSets != null && !decisionToSets.isEmpty()) {
 			toIterator = decisionToSets.iterator();
+			//Check all certain rule sets for the decision value
 			while(toIterator.hasNext()) {
 				header = new ArrayList<String>();
 				headerOccurrences = new ArrayList<String>();
@@ -293,11 +306,14 @@ public class Logic {
 				}
 			}
 		}
-			
 	}
 	
 
-	
+	/**
+	 * Add action rule from parameters to actionRules map
+	 * @param fromAction original from portion of action rule
+	 * @param toAction final portion of action rule
+	 */
 	private void addActionRule(ArrayList<String> fromAction, ArrayList<String> toAction) {
 		ArrayList<String> tempFrom = new ArrayList<String>();
 		ArrayList<String> tempTo = new ArrayList<String>();
@@ -306,7 +322,6 @@ public class Logic {
 		tempFrom.removeAll(getHeader(fromAction));
 		tempTo.addAll(toAction);
 		tempTo.removeAll(getHeader(toAction));
-		
 		
 		boolean add = true;
 		
@@ -325,6 +340,9 @@ public class Logic {
 			actionRules.put(fromAction, toAction);
 	}
 
+	/**
+	 * Writes action rules, their support, and their confidence to the output file
+	 */
 	public void printActionRules() {
 		ArrayList<String> toAction;
 		ArrayList<String> fromAction;
@@ -336,6 +354,11 @@ public class Logic {
 		Path file = Paths.get("output.txt");
 		
 		try(BufferedWriter writer = Files.newBufferedWriter(file, StandardOpenOption.APPEND))  {
+			if(actionRules.isEmpty()) {
+				result += "No action rules found";
+				writer.write(result);
+			}
+				
 			for(Map.Entry<ArrayList<String>, ArrayList<String>> entry : actionRules.entrySet()) {
 				fromAction = new ArrayList<String>();
 				toAction = new ArrayList<String>();
@@ -404,16 +427,25 @@ public class Logic {
 		}catch (IOException error) {
 		    System.out.println(error.getStackTrace());
 		}
-		
-		
-		//return result;
 	}
 	
+	/**
+	 * Sets minimum values for support and confidence of action rules
+	 * @param support
+	 * @param confidence
+	 */
 	public void setMinSupportConfidence(int support, int confidence) {
 		minSupport = support;
 		minConfidence = confidence;
 	}
 	
+	/**
+	 * Verifies that the potential rule has the minimum support and confidence and saves
+	 * the support and confidence for the rule if it meets minimum
+	 * @param fromAction
+	 * @param toAction
+	 * @return true if the rule has the min support/confidence
+	 */
 	public boolean checkSupportConfidence(ArrayList<String> fromAction, ArrayList<String> toAction) {
 		boolean add = true;
 		int supportFrom = 0;
@@ -522,9 +554,9 @@ public class Logic {
 	
 	
 	/**
-	 * 
-	 * @param supportSearch
-	 * @return
+	 * Find what lines the given list occurs on
+	 * @param supportSearch List of attribute values to search for
+	 * @return The lines that the set occurs on
 	 */
 	public List<String> findOccurrences(List<String> supportSearch){
 		HashSet<String> temp = new HashSet<String>();
@@ -554,26 +586,10 @@ public class Logic {
 	}
 	
 	/**
-	 * 
-	 * @param supportSearch
-	 * @return
+	 * Returns the header for a given set
+	 * @param set Set to get the header from
+	 * @return The header of the given set
 	 */
-	private int[] getAttributePos(List<String> supportSearch) {
-		int[] supportPos = new int[supportSearch.size()];
-		
-		for(int i = 0; i < supportSearch.size(); i++) {
-			String searchName = deriveAttributeName(supportSearch.get(i));
-			for(int k = 0; k < attributeNames.size(); k++) {
-				if(attributeNames.get(k).equals(searchName)) {
-					supportPos[i] = k;
-					break;
-				}
-			}
-		}
-		
-		return supportPos;
-	}
-	
 	private List<String> getHeader(ArrayList<String> set) {
 		ArrayList<String> header = new ArrayList<String>();
 		
@@ -585,6 +601,11 @@ public class Logic {
 		return header;
 	}
 	
+	/**
+	 * Returns the header for a given set
+	 * @param set Set to get the header from
+	 * @return The header of the given set
+	 */
 	private List<String> getHeader(HashSet<String> set) {
 		ArrayList<String> header = new ArrayList<String>();
 		
@@ -596,7 +617,12 @@ public class Logic {
 		return header;
 	}
 	
-	public String getAttributeValue(String value) {
+	/**
+	 * Get the value from of the attributename + attributeValue
+	 * @param value 
+	 * @return the value of the attributeName+attributeValue combo
+	 */
+	public String deriveAttributeValue(String value) {
 		String aValue = "";
 		
 		for(String currName : attributeNames) {
@@ -610,7 +636,7 @@ public class Logic {
 	}
 	
 	/**
-	 * 
+	 * Derive the attribute name from a combination of attributeName + attributeValue
 	 * @param value a value of attribute name + attribute value
 	 * @return the attribute name 
 	 */
@@ -627,18 +653,36 @@ public class Logic {
 		return name;		
 	}
 	
+	/**
+	 * Returns list of attribute names
+	 * @return List of attribute names
+	 */
 	public List<String> getAttributeNames() {
 		return attributeNames;
 	}
 
+	/**
+	 * Return all distinct attribute values
+	 * @return Mapping of distinct attribute values. Key = attribute name, value = attribute value
+	 */
 	public Map<String, HashSet<String>> getDistinctAttributeValues() {
 		return distinctAttributeValues;
 	}
 	
+	/**
+	 * return the distinct attribute values for a given attribute name
+	 * @param key attribute name
+	 * @return the list of distinct attribute values for an attribute name
+	 */
 	public HashSet<String> getDistinctAttributeValues(String key){
 		return distinctAttributeValues.get(key);
 	}
 
+	/**
+	 * set the stable and flexible attributes. Flexible attributes are assumed from all attributes
+	 * that are not stable
+	 * @param stable set of all stable attributes
+	 */
 	public void setStableFlexible(HashSet<String> stable) {
 		this.stable = stable;
 		

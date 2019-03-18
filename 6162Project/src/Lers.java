@@ -1,9 +1,13 @@
+/**
+ * Author: Group 8
+ * 
+ * This class manages the calculation of LERS
+ */
+
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.Charset;
 import java.nio.file.Files;
-import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -19,14 +23,16 @@ import java.text.NumberFormat;
 public class Lers {
 	 private static final String SEPARATOR = System.getProperty("line.separator");
 	/**
+	 * Keeps track of all attribute values and their line occurrences. A hashset is used as the key
+	 * to be able to accommodate the combined attribute values at each loop
 	 * key = set of attributes
 	 * value = lines it occurred on
 	 */
 	private Map<HashSet<String>, HashSet<String>> attributeValues = new HashMap<HashSet<String>, HashSet<String>>(); 
-	private Map<String, HashSet<String>> distinctAttributeValues;
-	private List<String> attributeNames;
+	/**
+	 * String used to track what is to be written to output file
+	 */
 	private String result;
-	
 	/**
 	 * value = set of attributes on left of rule arrow. Each set is a different set of attributes for a rule 
 	 * key = attribute on right of arrow.
@@ -35,17 +41,17 @@ public class Lers {
 	private Map<String, HashSet<HashSet<String>>> certainRules = new HashMap<String, HashSet<HashSet<String>>>();
 	
 	/**
-	 * key = 
-	 * value = 
+	 * As possible rules will not be directly used, we simply save the list of them as they are
+	 * calculated.
 	 */
-	//private Map<String, HashSet<HashSet<String>>> possibleRules;
 	private ArrayList<String> possibleRules = new ArrayList<String>();
 	
 	/**
+	 * Map of all certain rules and their support values
 	 * key = set of attributes in rule, both on left and right of arrow
+	 * value = support value 
 	 */
 	private Map<HashSet<String>, Integer> rulesSupport = new HashMap<HashSet<String>, Integer>();
-	//private Map<HashSet<String>, Float> rulesConfidence = new HashMap<HashSet<String>, Float>();
 	private HashSet<String> decisionSetInitial;
 	private HashSet<String> decisionSetTo;
 	private String decisionValueInitial;
@@ -65,74 +71,77 @@ public class Lers {
 			this.attributeValues.put(tempSet, entry.getValue());
 		}
 
-		this.distinctAttributeValues = distinctAttributeValues;
-		this.attributeNames = attributeNames;
 		result = "";
 	}
 	
 	/**
-	 * 
+	 * Main logic of LERS. Runs loop to find certain rules and possible rules, then combines sets for next
+	 * loop
 	 */
 	public void runLers() {
 		HashSet<String> tempSet;
 		HashMap<HashSet<String>, HashSet<String>> tempValueMap = new HashMap<HashSet<String>, HashSet<String>>();
 		File output = new File("output.txt");
+		int loop = 0;
+		
 		if(output.exists())
 			output.delete();
 		
 		Path file = Paths.get("output.txt");
 		
-		try (BufferedWriter writer = Files.newBufferedWriter(file, StandardOpenOption.CREATE)) {
-		    
-		
-		int loop = 0;
-		
-		tempSet = new HashSet<String>();
-		tempSet.add(decisionValueInitial);
-		attributeValues.remove(tempSet);
-		
-		tempSet.clear();
-		tempSet.add(decisionValueTo);
-		attributeValues.remove(tempSet);
-		
-		while(!attributeValues.isEmpty()) {
-			tempValueMap.clear();
-			tempValueMap.putAll(attributeValues);
+		try (BufferedWriter writer = Files.newBufferedWriter(file, StandardOpenOption.CREATE)) {		
+			//Initial and final decision values won't be combined with any other attribute values
+			tempSet = new HashSet<String>();
+			tempSet.add(decisionValueInitial);
+			attributeValues.remove(tempSet);
+			tempSet.clear();
+			tempSet.add(decisionValueTo);
+			attributeValues.remove(tempSet);
 			
-			loop++;
-			printAttributeSets(loop);			
-			
-			for(Map.Entry<HashSet<String>, HashSet<String>> entry : tempValueMap.entrySet()) {						
-				if (decisionSetInitial.containsAll(entry.getValue())) { 
-					addCertainRule(entry.getKey(), entry.getValue().size(), decisionValueInitial);
-					//certainRules.put(decisionAttributeValue.get(0), entry.getValue());
-					attributeValues.remove(entry.getKey());
-				}else if(decisionSetTo.containsAll(entry.getValue())){
-					addCertainRule(entry.getKey(), entry.getValue().size(), decisionValueTo);
-					//certainRules.put(decisionAttributeValue.get(0), entry.getValue());
-					attributeValues.remove(entry.getKey()); //No longer need this value to be considered
-				}else {//Calculate possible rules
-					if (!addPossibleRule(entry.getValue(), entry.getKey()));
-						//attributeValues.remove(entry.getKey()); 
+			//Continue until there are no more attribute values to combine
+			while(!attributeValues.isEmpty()) {
+				//Temp used to allow removal of attribute values when they are certain rules
+				tempValueMap.clear();
+				tempValueMap.putAll(attributeValues);
+				
+				loop++;
+				
+				printAttributeSets(loop);
+				writer.write(result);
+				result = "";
+				
+				//Check each attribute value set to check if it is a certain rule
+				for(Map.Entry<HashSet<String>, HashSet<String>> entry : tempValueMap.entrySet()) {						
+					if (decisionSetInitial.containsAll(entry.getValue())) { 
+						addCertainRule(entry.getKey(), entry.getValue().size(), decisionValueInitial);
+						attributeValues.remove(entry.getKey());
+					}else if(decisionSetTo.containsAll(entry.getValue())){
+						addCertainRule(entry.getKey(), entry.getValue().size(), decisionValueTo);
+						attributeValues.remove(entry.getKey()); 
+					}else {
+						addPossibleRule(entry.getValue(), entry.getKey());
+					}
 				}
+				
+				printRules(loop);
+				//Result now contains all rules for the loop
+				writer.write(result);
+				
+				combineAttributeValues(loop);
+				
+				result = SEPARATOR;
 			}
-			
-			printRules(loop);
-			writer.write(result);
-			result = SEPARATOR;
-			combineAttributeValues(loop);
-			writer.write(result);
-			result = SEPARATOR;
-		}
-		
-		
 		} catch (IOException error) {
 		    System.out.println(error.getStackTrace());
 		}
-		
-		//return result;
 	}
 
+	/**
+	 * Sets all current attribute sets and their line occurrences to the result string for runLers to 
+	 * save to file
+	 * 
+	 * @param loop Number of current loop
+	 */
 	private void printAttributeSets(int loop) {
 		result += (SEPARATOR + "Loop " + loop + SEPARATOR 
 							+ "Sets:" + SEPARATOR);
@@ -148,6 +157,12 @@ public class Lers {
 
 	}
 
+	/**
+	 * Sets all current possible rules and the certain rules to the result string for runLers to 
+	 * save to file
+	 * 
+	 * @param loop number of current loop
+	 */
 	private void printRules(int loop) {
 		result += (SEPARATOR + "Certain Rules:" + SEPARATOR);
 		Iterator<HashSet<String>> iterateSets;
@@ -155,6 +170,7 @@ public class Lers {
 		
 		for(Map.Entry<String, HashSet<HashSet<String>>> entry : certainRules.entrySet()) {
 			iterateSets = entry.getValue().iterator();
+			
 			while(iterateSets.hasNext()) {
 				tempSet = new HashSet<String>();
 				tempSet.addAll(iterateSets.next());
@@ -174,47 +190,44 @@ public class Lers {
 			result += (possibleRules.get(i));
 		}
 		
+		//Reset possible rules as these have been printed once already
 		possibleRules = new ArrayList<String>();
 	}
 
 	/**
-	 * 
+	 * Combines the attribute values and their line occurrences for next loop of the LERS algorithm.
 	 */
 	private void combineAttributeValues(int loop) {
 		Map<HashSet<String>, HashSet<String>> tempAttributeValues = new HashMap<HashSet<String>, HashSet<String>>();
 		Map<HashSet<String>, HashSet<String>> tempAttributeValues2 = new HashMap<HashSet<String>, HashSet<String>>();
-		HashSet<HashSet<String>> checkedKeys = new HashSet<HashSet<String>>();
-		tempAttributeValues.putAll(attributeValues);
 		HashSet<String> firstSetKey;
 		HashSet<String> firstSetValue;
 		HashSet<String> newSetKey;
 		HashSet<String> newSetValue;
 		String nextLineOccurrence;
 		
+		//Used to keep track of the newly created combined attribute values
+		tempAttributeValues.putAll(attributeValues);
+		
+		//Used to allow a nested loop to combine a first set with a second attribute value set
 		tempAttributeValues2.putAll(attributeValues);
-		//attributeValues.putAll(tempAttributeValues2);
 		
 		for(Map.Entry<HashSet<String>, HashSet<String>> entry : attributeValues.entrySet()) {
 			firstSetKey = entry.getKey();
 			firstSetValue = entry.getValue();
-			//attributeValues.remove(entry.getKey());
-			//tempAttributeValues2.clear();
-			//attributeValues.putAll(tempAttributeValues2);
-			//entry.getKey().addAll(checkedKeys);
-			//checkedKeys.add(entry.getKey());
+
 			tempAttributeValues.remove(entry.getKey());
+			tempAttributeValues2.remove(entry.getKey());
 			
-			//Iterator<HashSet<String>> setsIterator = checkedKeys.iterator();
-			//while(setsIterator.hasNext()) {
-			//	tempAttributeValues2.remove(setsIterator.next());
-			//}
-			
-			//tempAttributeValues2.remove(entry.getKey());
-			
+			//Combine the first set with all other attribute value sets
 			for(Map.Entry<HashSet<String>, HashSet<String>> entryRemain : tempAttributeValues2.entrySet()) {
 				newSetKey = new HashSet<String>();
 				newSetKey.addAll(firstSetKey);
 				newSetKey.addAll(entryRemain.getKey());
+				
+				//If set was already created, don't need to calculate again
+				if(tempAttributeValues.containsKey(newSetKey))
+					continue;
 				
 				//Each attribute set should only have the size of the next loop. i.e. loop two should have sets of two
 				if(newSetKey.size() != (loop+1))
@@ -238,15 +251,16 @@ public class Lers {
 					boolean subsetIsRule = false;
 					for(Map.Entry<String, HashSet<HashSet<String>>> ruleSets : certainRules.entrySet()) {
 						Iterator<HashSet<String>> setsIterator = ruleSets.getValue().iterator();
-						//Go through all certain rule sets
+						
 						while(setsIterator.hasNext()) {
 							//if a set in certain rules is a subset of the new combination, don't continue with set
 							if(newSetKey.containsAll(setsIterator.next()))
 								subsetIsRule = true;
 						}
 					}
-					if(!subsetIsRule)
+					if(!subsetIsRule) {
 						tempAttributeValues.put(newSetKey, newSetValue);
+					}
 				}
 			}
 		}
@@ -255,21 +269,19 @@ public class Lers {
 	}
 
 	/**
+	 * Calculates possible rules based on given set and line occurrences
 	 * 
-	 * @param value
-	 * @param decisionSetInitial
-	 * @param decisionSetTo
-	 * @return boolean to represent if the set is a subset of any decision value. If it is not, it should
-	 * 			be removed from considered sets for future rules
+	 * @param value line occurrences 
+	 * @param key attribute set
 	 */
-	private boolean addPossibleRule(HashSet<String> value, HashSet<String> key) {
+	private void addPossibleRule(HashSet<String> value, HashSet<String> key) {
 		int supportDecisionInitial = 0;
 		int supportDecisionTo = 0;
-		boolean isSubset = true;
 		float confidence;
 		String temp;
 		NumberFormat formatter = new DecimalFormat("#0.00");
 		
+		//Find support in possible rule to both decision values
 		for(String currOccurence : value.toArray(new String[value.size()])) {
 			if(decisionSetInitial.contains(currOccurence)) {
 				supportDecisionInitial++;
@@ -304,18 +316,14 @@ public class Lers {
 			confidence = ((float)supportDecisionTo/value.size() * 100);
 			temp += " Confidence:" + formatter.format((confidence)) + "%";
 			possibleRules.add(temp + SEPARATOR);
-		}
-		
-		if(supportDecisionInitial == 0 && supportDecisionTo == 0) {
-			isSubset = false;
-		}
-		
-		return isSubset;
+		}		
 	}
 
 	/**
+	 * Adds certain rule to the certainRules mapping and support value to rulesSupport
 	 * 
 	 * @param value set of attributes on left of arrow
+	 * @param support the support value for this rule
 	 * @param key decision attribute on right of rule
 	 */
 	private void addCertainRule(HashSet<String> value, int support, String key) {
@@ -337,6 +345,10 @@ public class Lers {
 		rulesSupport.put(supportSet, support);
 	}
 
+	/**
+	 * Retruns certain rules map
+	 * @return certain rules map
+	 */
 	public Map<String, HashSet<HashSet<String>>> getCertainRules(){
 		return certainRules;
 	}
