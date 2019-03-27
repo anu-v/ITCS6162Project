@@ -16,11 +16,12 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Observable;
 import java.nio.file.StandardOpenOption;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 
-public class Lers {
+public class Lers extends Observable {
 	 private static final String SEPARATOR = System.getProperty("line.separator");
 	/**
 	 * Keeps track of all attribute values and their line occurrences. A hashset is used as the key
@@ -79,6 +80,9 @@ public class Lers {
 	 * loop
 	 */
 	public void runLers() {
+		setChanged();
+		notifyObservers("Calculating LERS Certain Rules...." + SEPARATOR);
+		
 		HashSet<String> tempSet;
 		HashMap<HashSet<String>, HashSet<String>> tempValueMap = new HashMap<HashSet<String>, HashSet<String>>();
 		File output = new File("output.txt");
@@ -107,6 +111,10 @@ public class Lers {
 				loop++;
 				
 				printAttributeSets(loop);
+				setChanged();
+				notifyObservers(result);
+				
+				
 				writer.write(result);
 				result = "";
 				
@@ -125,6 +133,9 @@ public class Lers {
 				
 				printRules(loop);
 				//Result now contains all rules for the loop
+				setChanged();
+				notifyObservers(result);
+				
 				writer.write(result);
 				
 				combineAttributeValues(loop);

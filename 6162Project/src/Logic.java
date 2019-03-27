@@ -21,8 +21,11 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Observable;
+import java.util.Observer;
 
-public class Logic {
+public class Logic extends Observable implements Runnable, Observer 
+{
 	
 	private static final String SEPARATOR = System.getProperty("line.separator");
 	private List<String> attributeNames;
@@ -222,22 +225,12 @@ public class Logic {
 	}
 	
 	/**
-	 * Runs LERS based on given decision values
-	 * @param decisionValueInitial initial decision value
-	 * @param decisionValueTo final decision value
-	 */
-	public void runLers(String decisionValueInitial, String decisionValueTo) {
-		this.decisionValueInitial = decisionValueInitial;
-		this.decisionValueTo = decisionValueTo;
-		lers = new Lers(decisionValueInitial, decisionValueTo, attributeValues, 
-				distinctAttributeValues, attributeNames);
-		 lers.runLers();
-	}
-	
-	/**
 	 * Calculates action rules 
 	 */
 	public void calculateActionRules() {
+		setChanged();
+		notifyObservers("Calculating Action Rules...." + SEPARATOR);
+		
 		certainRules = lers.getCertainRules();
 		HashSet<HashSet<String>> decisionToSets  = certainRules.get(decisionValueTo);
 		HashSet<String> toSet;
@@ -356,6 +349,9 @@ public class Logic {
 		try(BufferedWriter writer = Files.newBufferedWriter(file, StandardOpenOption.APPEND))  {
 			if(actionRules.isEmpty()) {
 				result += "No action rules found";
+				setChanged();
+				notifyObservers(result);
+				
 				writer.write(result);
 			}
 				
@@ -421,6 +417,10 @@ public class Logic {
 				ArrayList<Integer> suppConf = ruleSuppConf.get(entry.getKey());
 				result += "\tSupport: " + suppConf.get(0);
 				result += "\tConfidence: " + formatter.format((suppConf.get(1))) + "%" + SEPARATOR;
+				setChanged();
+				notifyObservers(result);
+				
+				
 				writer.write(result);
 				result = "";
 			}
@@ -693,4 +693,35 @@ public class Logic {
 			}
 		}
 	}
+
+	/**
+	 * Sets decision attributes
+	 * @param decisionValueInitial initial decision value
+	 * @param decisionValueTo final decision value
+	 */
+	public void setDecisionAttributes(String decisionValueInitial, String decisionValueTo) {
+		this.decisionValueInitial = decisionValueInitial;
+		this.decisionValueTo = decisionValueTo;
+	}
+	
+	/**
+	 * Runs LERS based on given decision values
+	 */
+	public void run() {
+		lers = new Lers(decisionValueInitial, decisionValueTo, attributeValues, 
+				distinctAttributeValues, attributeNames);
+		lers.addObserver(this); 
+		lers.runLers();
+		 
+		 calculateActionRules();
+		 printActionRules();
+	}
+
+	@Override
+	public void update(Observable o, Object arg) {
+		setChanged();
+		notifyObservers(arg);
+	}
+	
+	
 }

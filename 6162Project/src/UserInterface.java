@@ -3,6 +3,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Observable;
+import java.util.Observer;
 
 import javax.swing.JFrame;
 import javax.swing.JPanel;
@@ -26,7 +28,7 @@ import javax.swing.JOptionPane;
 import java.awt.event.ItemListener;
 import java.awt.event.ItemEvent;
 
-public class UserInterface {
+public class UserInterface implements Observer{
 
 	private JFrame frame;
 	private JTextArea textArea;
@@ -36,7 +38,7 @@ public class UserInterface {
 	private JTextField headerFileField;
 	private JTextField minSupportTextField;
 	private JTextField minConfidenceTextField;
-	private Logic run;
+	private Logic actionFinder;
 	private JList<String> stableAttributesList;
 	private JComboBox<String> decisionAttributeComboBox;
 	private JComboBox<String> dToValueComboBox;
@@ -53,6 +55,7 @@ public class UserInterface {
 				try {
 					UserInterface window = new UserInterface();
 					window.frame.setVisible(true);
+					
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
@@ -73,6 +76,9 @@ public class UserInterface {
 	 * Initialize the contents of the frame.
 	 */
 	private void initialize() {
+		actionFinder = new Logic();
+		actionFinder.addObserver(this);
+		
 		frame = new JFrame();
 		frame.setBounds(100, 100, 603, 585);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -93,7 +99,7 @@ public class UserInterface {
 				
 				HashSet<String> stable = new HashSet<String>();
 				stable.addAll(stableAttributesList.getSelectedValuesList());		
-				run.setStableFlexible(stable);
+				actionFinder.setStableFlexible(stable);
 				
 				if(stable.contains((String)decisionAttributeComboBox.getSelectedItem())){
 					JOptionPane.showMessageDialog(null, "Decision attribute cannot be stable.", 
@@ -119,30 +125,15 @@ public class UserInterface {
 				}
 					
 				if(correctInput) {
-					run.setMinSupportConfidence(Integer.parseInt(minSupportTextField.getText()),
+					actionFinder.setMinSupportConfidence(Integer.parseInt(minSupportTextField.getText()),
 							Integer.parseInt(minConfidenceTextField.getText()));
 					
 					String decisionName = (String)decisionAttributeComboBox.getSelectedItem();
-					textArea.append("Running LERs..." + SEPARATOR);
-					run.runLers(decisionName + ((String)dInitialValueComboBox.getSelectedItem()),
+					
+					actionFinder.setDecisionAttributes(decisionName + ((String)dInitialValueComboBox.getSelectedItem()),
 							decisionName + (String)dToValueComboBox.getSelectedItem());
 					
-					String line;
-					try(BufferedReader reader = new BufferedReader((new FileReader("output.txt")))) {
-						while((line = reader.readLine()) != null) { 
-							textArea.append(line + SEPARATOR);
-						}
-					
-						textArea.append("Calculating action rules..." + SEPARATOR);
-						run.calculateActionRules();
-						run.printActionRules();		
-						
-						while((line = reader.readLine()) != null) { 
-							textArea.append(line + SEPARATOR);
-						}
-					}catch(IOException e) {
-						System.out.println(e.getMessage());
-					}
+					(new Thread(actionFinder)).start();
 				}				
 			}
 		});
@@ -199,7 +190,7 @@ public class UserInterface {
 					dInitialValueComboBox.removeAllItems();
 					dToValueComboBox.removeAllItems();
 					
-					HashSet<String> distinctValues = run.getDistinctAttributeValues((String)arg0.getItem());
+					HashSet<String> distinctValues = actionFinder.getDistinctAttributeValues((String)arg0.getItem());
 					
 					for(String value : distinctValues) {
 						dInitialValueComboBox.addItem(value);
@@ -272,8 +263,7 @@ public class UserInterface {
 				if(!(dataFile == null) && !(headerFile == null)){
 					if(dataFile.isFile() && headerFile.isFile()){
 						textArea.append("Reading files..." + SEPARATOR);
-						run = new Logic();
-						run.readFile(headerFile, dataFile);
+						actionFinder.readFile(headerFile, dataFile);
 						textArea.append("Files read" + SEPARATOR);
 						
 						//set decision attribute choices
@@ -299,7 +289,7 @@ public class UserInterface {
 	 * Initialize all potential stable attributes in the list
 	 */
 	protected void initStableAttributes() {
-		String[] attributeNames = (run.getAttributeNames().toArray(new String[0]));
+		String[] attributeNames = (actionFinder.getAttributeNames().toArray(new String[0]));
 
 		stableAttributesList.setListData(attributeNames);
 		
@@ -309,12 +299,17 @@ public class UserInterface {
 	 * Initializes all of the potential decision attribute values
 	 */
 	protected void initDecisionAttributes() {
-		List<String> attributeNames = run.getAttributeNames();
+		List<String> attributeNames = actionFinder.getAttributeNames();
 		
 		decisionAttributeComboBox.removeAllItems();
 		
 		for(String name : attributeNames) {
 			decisionAttributeComboBox.addItem(name);
 		}	
+	}
+
+	@Override
+	public void update(Observable arg0, Object lineEnd) {		
+		textArea.append((String)lineEnd);
 	}
 }
